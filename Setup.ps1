@@ -572,11 +572,11 @@ if (-not $roleAssignment) {
 
 Write-Host ""
 Write-Host "🔐 Configuring AKS Permissions on Rg $AksResourceGroup ..." -ForegroundColor Yellow
-$roleAssignment = Get-AzRoleAssignment -ObjectId $managedIdentity.PrincipalId -ResourceGroupName $AksResourceGroup -RoleDefinitionName "Azure Kubernetes Service RBAC Writer" -ErrorAction SilentlyContinue
+$roleAssignment = Get-AzRoleAssignment -ObjectId $managedIdentity.PrincipalId -ResourceGroupName $AksResourceGroup -RoleDefinitionName "Azure Kubernetes Service Cluster User Role" -ErrorAction SilentlyContinue
 if (-not $roleAssignment) {
     Write-Host "⏳ Assigning AKS Writer role to managed identity on Rg $AksResourceGroup ..."
     Start-Sleep -Seconds 5
-    New-AzRoleAssignment -ApplicationId $managedIdentity.ClientId -ResourceGroupName $AksResourceGroup -RoleDefinitionName "Azure Kubernetes Service RBAC Writer" | Out-Null
+    New-AzRoleAssignment -ApplicationId $managedIdentity.ClientId -ResourceGroupName $AksResourceGroup -RoleDefinitionName "Azure Kubernetes Service Cluster User Role" | Out-Null
     Write-Host "✅ AKS role assigned to managed identity on Rg $AksResourceGroup" -ForegroundColor Green
 } else {
     Write-Host "ℹ️  Managed identity already has AKS Writer role on Rg $AksResourceGroup" -ForegroundColor Blue
