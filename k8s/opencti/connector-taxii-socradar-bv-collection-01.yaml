@@ -1,0 +1,152 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: connector-taxii-socradar-bv-collection-01
+  name: connector-taxii-socradar-bv-collection-01
+  namespace: opencti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: connector-taxii-socradar-bv-collection-01
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.service: connector-taxii-socradar-bv-collection-01
+    spec:
+      containers:
+        - env:
+            - name: OPENCTI_URL
+              value: "http://opencti:8080"
+            - name: OPENCTI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-admin-token
+                  name: opencti-azure-kv-secret
+            - name: CONNECTOR_ID
+              value: "bad4942c-a344-4544-9e0e-2fb41edc0860"
+            - name: CONNECTOR_NAME
+              value: "TAXII-SOCRadar-bV(Collection 01)"
+            - name: CONNECTOR_SCOPE
+              value: "sighting,report,threat-actor,indicator,malware,location,identity,campaign,infrastructure,stix,ipv4-addr,ipv6-addr,vulnerability,domain,url,file-sha256,file-md5,file-sha1"
+            - name: CONNECTOR_LOG_LEVEL
+              value: "info"
+            - name: CONNECTOR_DURATION_PERIOD
+              value: "PT60M"
+            - name: TAXII2_DISCOVERY_URL
+              value: "https://taxii2.socradar.com/taxii2/"
+            - name: TAXII2_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: socradar-username
+                  name: opencti-azure-kv-secret
+            - name: TAXII2_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: socradar-password
+                  name: opencti-azure-kv-secret
+            - name: TAXII2_V21
+              value: "true"
+            - name: TAXII2_COLLECTIONS
+              value: "radar_alpha.collection0000,radar_alpha.collection0001,radar_alpha.collection0003,radar_alpha.collection004"
+            - name: TAXII2_INITIAL_HISTORY
+              value: "1"
+            - name: TAXII2_VERIFY_SSL
+              value: "true"
+            - name: TAXII2_CREATE_INDICATORS
+              value: "true"
+            - name: TAXII2_CREATE_OBSERVABLES
+              value: "true"
+            - name: TAXII2_ADD_CUSTOM_LABEL
+              value: "false"
+            - name: TAXII2_FORCE_PATTERN_AS_NAME
+              value: "false"
+            - name: TAXII2_FORCE_MULTIPLE_PATTERN_NAME
+              value: "Multiple Indicators"
+            - name: TAXII2_STIX_CUSTOM_PROPERTY_TO_LABEL
+              value: "false"
+            - name: TAXII2_ENABLE_URL_QUERY_LIMIT
+              value: "false"
+            - name: TAXII2_DETERMINE_X_OPENCTI_SCORE_BY_LABEL
+              value: "false"
+            - name: TAXII2_DEFAULT_X_OPENCTI_SCORE
+              value: "50"
+            - name: TAXII2_INDICATOR_HIGH_SCORE_LABELS
+              value: "high"
+            - name: TAXII2_INDICATOR_HIGH_SCORE
+              value: "80"
+            - name: TAXII2_INDICATOR_MEDIUM_SCORE_LABELS
+              value: "medium"
+            - name: TAXII2_INDICATOR_MEDIUM_SCORE
+              value: "60"
+            - name: TAXII2_INDICATOR_LOW_SCORE_LABELS
+              value: "low"
+            - name: TAXII2_INDICATOR_LOW_SCORE
+              value: "40"
+            - name: TAXII2_SET_INDICATOR_AS_DETECTION
+              value: "false"
+            - name: TAXII2_CREATE_AUTHOR
+              value: "false"
+            - name: TAXII2_AUTHOR_NAME
+              value: "ChangeMe"
+            - name: TAXII2_AUTHOR_DESCRIPTION
+              value: "ChangeMe"
+            - name: TAXII2_AUTHOR_RELIABILITY
+              value: "A - Completely reliable"
+            - name: TAXII2_EXCLUDE_SPECIFIC_LABELS
+              value: "false"
+            - name: TAXII2_LABELS_TO_EXCLUDE
+              value: "ChangeMe"
+            - name: TAXII2_REPLACE_CHARACTERS_IN_LABEL
+              value: "false"
+            - name: TAXII2_CHARACTERS_TO_REPLACE_IN_LABEL
+              value: "ChangeMe"
+            - name: TAXII2_IGNORE_PATTERN_TYPES
+              value: "false"
+            - name: TAXII2_PATTERN_TYPES_TO_IGNORE
+              value: "ChangeMe"
+            - name: TAXII2_IGNORE_OBJECT_TYPES
+              value: "false"
+            - name: TAXII2_OBJECT_TYPES_TO_IGNORE
+              value: "ChangeMe"
+            - name: TAXII2_IGNORE_SPECIFIC_PATTERNS
+              value: "false"
+            - name: TAXII2_PATTERNS_TO_IGNORE
+              value: "ChangeMe"
+            - name: TAXII2_IGNORE_SPECIFIC_NOTES
+              value: "false"
+            - name: TAXII2_NOTES_TO_IGNORE
+              value: "ChangeMe"
+            - name: TAXII2_SAVE_ORIGINAL_INDICATOR_ID_TO_NOTE
+              value: "false"
+            - name: TAXII2_SAVE_ORIGINAL_INDICATOR_ID_ABSTRACT
+              value: "ChangeMe"
+            - name: TAXII2_CHANGE_REPORT_STATUS
+              value: "false"
+            - name: TAXII2_CHANGE_REPORT_STATUS_X_OPENCTI_WORKFLOW_ID
+              value: "ChangeMe"
+          image: $(ACRSERVER)/basevision/opencti-taxii2-socradar:latest
+          name: connector-taxii-socradar-bv-collection-01
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 500m
+            requests:
+              memory: 256Mi
+              cpu: 250m
+          volumeMounts:
+            - name: opencti-azure-kv-volume
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: opencti-azure-kv-volume
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "opencti-azure-kv"

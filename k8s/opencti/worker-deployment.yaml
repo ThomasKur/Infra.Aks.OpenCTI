@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: worker
+  name: opencti-worker
+  namespace: opencti
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      io.kompose.service: worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        io.kompose.service: worker
+    spec:
+      containers:
+        - env:
+            - name: OPENCTI_URL
+              value: http://opencti:8080
+            - name: OPENCTI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-admin-token
+                  name: opencti-azure-kv-secret
+            - name: WORKER_LOG_LEVEL
+              value: info
+          image: $(ACRSERVER)/dockerhub/opencti/worker:6.7.16
+          name: opencti-worker
+          resources:
+            limits:
+              memory: 2Gi
+              cpu: 1000m
+            requests:
+              memory: 1Gi
+              cpu: 500m
+          livenessProbe:
+            exec:
+              command:
+                - pgrep
+                - -f
+                - worker
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+          volumeMounts:
+            - name: opencti-azure-kv-volume
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: opencti-azure-kv-volume
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "opencti-azure-kv"

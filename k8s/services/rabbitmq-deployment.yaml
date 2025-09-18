@@ -1,0 +1,128 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: opencti
+data:
+  rabbitmq.conf: |
+    max_message_size = 536870912
+    consumer_timeout = 86400000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: rabbitmq
+  name: rabbitmq
+  namespace: opencti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: rabbitmq
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.service: rabbitmq
+    spec:
+      containers:
+        - env:
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  key: rabbitmq-password
+                  name: opencti-azure-kv-secret
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  key: rabbitmq-user
+                  name: opencti-azure-kv-secret
+            - name: RABBITMQ_NODENAME
+              value: rabbit01@localhost
+          image: $(ACRSERVER)/dockerhub/library/rabbitmq:4.1-management
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - "rabbitmq-diagnostics -q ping"
+            failureThreshold: 3
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 5672
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: rabbitmq
+          ports:
+            - containerPort: 5672
+              name: amqp
+              protocol: TCP
+            - containerPort: 15672
+              name: management
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/rabbitmq/rabbitmq.conf
+              name: rabbitmq-config
+              subPath: rabbitmq.conf
+            - mountPath: /var/lib/rabbitmq
+              name: amqpdata
+            - name: opencti-azure-kv-volume
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: rabbitmq-config
+          configMap:
+            name: rabbitmq-config
+        - name: amqpdata
+          persistentVolumeClaim:
+            claimName: amqpdata
+        - name: opencti-azure-kv-volume
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "opencti-azure-kv"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    io.kompose.service: amqpdata
+  name: amqpdata
+  namespace: opencti
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: managed-csi
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: rabbitmq
+  name: rabbitmq
+  namespace: opencti
+spec:
+  ports:
+    - name: amqp
+      port: 5672
+      protocol: TCP
+      targetPort: 5672
+    - name: management
+      port: 15672
+      protocol: TCP
+      targetPort: 15672
+  selector:
+    io.kompose.service: rabbitmq
+  type: ClusterIP

@@ -1,0 +1,372 @@
+name: 0 Deploy Infra
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run with'
+        type: environment
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    name: 0 Deploy Infra
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+    - name: Login to Azure
+      uses: azure/login@v2.3.0
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id:  ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        enable-AzPSSession: true
+
+    # Step 1: Checkout the repository
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+
+    # Step 3: Clean up stale managed identity permissions
+    - name: Clean up stale permissions
+      uses: azure/powershell@v2
+      with:
+        inlineScript: |
+          # Get the resource group name
+          $resourceGroupResourceId = "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourcegroups/rg-${{ vars.APPNAME }}-${{ vars.APPVERSION }}"
+
+          Write-Host "Checking for stale managed identity role assignments in resource group and its resources: $resourceGroupResourceId" -ForegroundColor Cyan
+
+        
+          
+          # Collect all role assignments from resource group and its resources
+          $allRoleAssignments = @()
+          
+          # Get role assignments for the resource group itself
+          Write-Host "Checking role assignments at resource group level..." -ForegroundColor Blue
+          $rgRoleAssignments = Get-AzRoleAssignment -Scope $resourceGroupResourceId | Where-Object { ($_.ObjectType -eq "ServicePrincipal" -or $_.ObjectType -eq "Unknown") -and $_.Scope -eq $resourceGroupResourceId }
+          if ($rgRoleAssignments) {
+            $allRoleAssignments += $rgRoleAssignments
+            foreach ($assignment in $rgRoleAssignments) {
+              Write-Host "      Role: $($assignment.RoleDefinitionName), PrincipalId: $($assignment.ObjectId)" -ForegroundColor Green
+            }
+            Write-Host "  Found $($rgRoleAssignments.Count) role assignments at resource group level" -ForegroundColor Green
+          }
+          
+          # Get all resources in the resource group
+          Write-Host "Getting all resources in the resource group..." -ForegroundColor Blue
+          $resources = Get-AzResource -ResourceGroupName "rg-${{ vars.APPNAME }}-${{ vars.APPVERSION }}"
+          
+          if ($resources) {
+            Write-Host "  Found $($resources.Count) resources to check" -ForegroundColor Green
+            
+            # Check role assignments for each resource
+            foreach ($resource in $resources) {
+              Write-Host "  Checking resource: $($resource.Name) ($($resource.ResourceType))" -ForegroundColor Gray
+              
+              try {
+                $resourceRoleAssignments = Get-AzRoleAssignment -Scope $resource.ResourceId | Where-Object { ($_.ObjectType -eq "ServicePrincipal" -or $_.ObjectType -eq "Unknown") -and $_.Scope -eq $resource.ResourceId }
+                if ($resourceRoleAssignments) {
+                  $allRoleAssignments += $resourceRoleAssignments
+                  foreach ($assignment in $resourceRoleAssignments) {
+                    Write-Host "      Role: $($assignment.RoleDefinitionName), PrincipalId: $($assignment.ObjectId)" -ForegroundColor Green
+                  }
+                  Write-Host "    Found $($resourceRoleAssignments.Count) role assignments" -ForegroundColor Green
+                }
+              } catch {
+                Write-Host "    Warning: Could not check role assignments for $($resource.Name): $($_.Exception.Message)" -ForegroundColor Yellow
+              }
+            }
+          } else {
+            Write-Host "  No resources found in the resource group" -ForegroundColor Yellow
+          }
+          
+          if (-not $allRoleAssignments) {
+            Write-Host "No role assignments found for service principals in resource group or its resources." -ForegroundColor Green
+            exit 0
+          }
+          
+          # Get unique principal IDs from all role assignments
+          $uniquePrincipals = $allRoleAssignments | Select-Object -ExpandProperty ObjectId -Unique
+          
+          Write-Host ""
+          Write-Host "Total role assignments found: $($allRoleAssignments.Count)" -ForegroundColor Blue
+          Write-Host "Unique service principals with role assignments: $($uniquePrincipals.Count)" -ForegroundColor Blue
+          Write-Host ""
+          
+          # Track stale principals
+          $stalePrincipals = @()
+          
+          # Check each unique principal ID
+          foreach ($principalId in $uniquePrincipals) {
+            Write-Host "Checking service principal: $principalId"
+            
+            try {
+              $sp = Get-AzADServicePrincipal -ObjectId $principalId -ErrorAction Stop
+              Write-Host "  ✅ Service principal $principalId still exists" -ForegroundColor Green
+            } catch {
+              Write-Host "  ❌ Service principal $principalId no longer exists" -ForegroundColor Red
+              $stalePrincipals += $principalId
+            }
+          }
+          
+          Write-Host ""
+          
+          # Remove role assignments for stale principals
+          if ($stalePrincipals.Count -gt 0) {
+            Write-Host "Removing role assignments for $($stalePrincipals.Count) stale service principal(s)..." -ForegroundColor Yellow
+            
+            foreach ($stalePrincipal in $stalePrincipals) {
+              Write-Host ""
+              Write-Host "Processing stale service principal: $stalePrincipal" -ForegroundColor Yellow
+              
+              # Get all role assignments for this stale principal (from both RG and resources)
+              $staleAssignments = $allRoleAssignments | Where-Object { $_.ObjectId -eq $stalePrincipal }
+              
+              foreach ($assignment in $staleAssignments) {
+                $scopeType = if ($assignment.Scope -eq $resourceGroupResourceId) { "Resource Group" } else { "Resource" }
+                Write-Host "  Removing role assignment: $($assignment.RoleDefinitionName) on $scopeType (Scope: $($assignment.Scope))" -ForegroundColor Blue
+                
+                try {
+                  Remove-AzRoleAssignment -ObjectId $assignment.ObjectId -RoleDefinitionName $assignment.RoleDefinitionName -Scope $assignment.Scope -ErrorAction Stop
+                  Write-Host "    ✅ Successfully removed role assignment" -ForegroundColor Green
+                } catch {
+                  Write-Host "    ❌ Failed to remove role assignment: $($_.Exception.Message)" -ForegroundColor Red
+                }
+              }
+            }
+          } else {
+            Write-Host "No stale service principals found. All role assignments are valid." -ForegroundColor Green
+          }
+          
+          Write-Host ""
+          Write-Host "Stale permission cleanup completed." -ForegroundColor Cyan
+        azPSVersion: "latest"
+
+  
+    - name: Bicep Deploy
+      uses: Azure/bicep-deploy@v2.2.0
+      with:
+        type: deployment
+        operation: create
+        name: "${{ vars.APPNAME }}-${{ vars.APPVERSION }}-${{ github.run_id}}"
+        scope: resourceGroup
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        resource-group-name: 'rg-${{ vars.APPNAME }}-${{ vars.APPVERSION }}'
+        template-file: main.bicep
+        # Specifies the parameters to use.
+        parameters: |
+          {
+            "appName": "${{ vars.APPNAME }}",
+            "appVersion": "${{ vars.APPVERSION }}",
+            "minioRootUser": "${{ secrets.MINIO_ROOT_USER }}",
+            "minioRootPassword": "${{ secrets.MINIO_ROOT_PASSWORD }}",
+            "entraIdInfraAdminGroupObjectId": "${{ vars.ENTRA_ID_INFRA_ADMIN_GROUP_ID }}",
+            "rabbitmqUser": "${{ secrets.RABBITMQ_USER }}",
+            "rabbitmqPassword": "${{ secrets.RABBITMQ_PASSWORD }}",
+            "openctiBaseUrl": "${{ vars.OPENCTI_BASE_URL }}",
+            "openctiAdminEmail": "${{ secrets.OPENCTI_ADMIN_EMAIL }}",
+            "openctiAdminPassword": "${{ secrets.OPENCTI_ADMIN_PASSWORD }}",
+            "openctiAdminToken": "${{ secrets.OPENCTI_ADMIN_TOKEN }}",
+            "openctiHealthcheckAccessKey": "${{ secrets.OPENCTI_HEALTHCHECK_ACCESS_KEY }}",
+            "redisPassword": "${{ secrets.REDIS_PASSWORD }}",
+            "smtpHostname": "${{ secrets.SMTP_HOSTNAME }}",
+            "samlCertData": "${{ secrets.SAML_CERT_DATA }}",
+            "socradarUsername": "${{ secrets.SOCRADAR_USERNAME }}",
+            "socradarPassword": "${{ secrets.SOCRADAR_PASSWORD }}"
+          }
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v4
+    
+    - name: Setup kubelogin
+      uses: azure/use-kubelogin@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        kubelogin-version: 'latest'
+
+    - name: Set AKS context
+      uses: azure/aks-set-context@v4
+      with:
+        resource-group: 'rg-${{ vars.AKS_RESSOURCE_GROUP }}'
+        cluster-name: 'aks-${{ vars.AKS_CLUSTER_NAME }}'
+        admin: 'false'
+        use-kubelogin: 'true'
+
+    - name: Check that Namespace OpenCTI exists
+      run: |
+        echo -e "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: opencti" | kubectl apply -f -
+
+    - name: Replace Variables 
+      uses: azure/powershell@v2
+      id: aks-clientid
+      with:
+        inlineScript: |
+          
+          function Replace-VariablesInFile {
+              param (
+                  [string]$FilePath,
+                  [hashtable]$Variables,
+                  [string]$OutputPath = $FilePath
+              )
+
+              if (-not (Test-Path $FilePath)) {
+                  Write-Error "Datei '$FilePath' wurde nicht gefunden."
+                  return
+              }
+
+              $content = Get-Content $FilePath -Raw
+
+              foreach ($key in $Variables.Keys) {
+                  $placeholder = "\$\($key\)"  # z.B. $(USERNAME)
+                  $value = [regex]::Escape($Variables[$key])
+                  $content = [regex]::Replace($content, $placeholder, $Variables[$key])
+              }
+
+              Set-Content -Path $OutputPath -Value $content
+              Write-Host "Variablen ersetzt und gespeichert in '$OutputPath'"
+          }
+
+          # Get AKS KeyVault Secrets Provider Managed Identity
+          Write-Host "Getting AKS KeyVault Secrets Provider Managed Identity..."
+          $aksclientid = az aks show --resource-group ${{ vars.AKS_RESOURCE_GROUP }} --name ${{ vars.AKS_CLUSTER_NAME }} --query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId -o tsv
+          Write-Output "Found Aks Key Vault Managed Identity: $aksclientid"
+          $server = Get-AzContainerRegistry -Name '${{ vars.ACR_NAME }}' -ResourceGroupName '${{ vars.AKS_RESOURCE_GROUP }}'
+          Write-Output "Found ACR server name: $($server.LoginServer)"
+
+          # Get the first Key Vault in the resource group
+          $keyVaultName = az keyvault list --resource-group "rg-${{ vars.APPNAME }}-${{ vars.APPVERSION }}" --query "[0].name" -o tsv
+          Write-Output "Found Key Vault name: $keyVaultName"
+    
+          
+          $vars = @{
+              AKSCLIENTID = $aksclientid
+              ACRSERVER = $($server.LoginServer)
+              KEYVAULT = $keyVaultName
+              APPNAME = '${{ vars.APPNAME }}'
+              APPVERSION = '${{ vars.APPVERSION }}'
+              TENANTID = '${{ secrets.AZURE_TENANT_ID }}'
+              OPENCTI_HOSTNAME = '${{ vars.OPENCTI_BASE_URL }}'
+              OPENCTI_HEALTHCHECK_ACCESS_KEY = '${{ secrets.OPENCTI_HEALTHCHECK_ACCESS_KEY }}'
+              SAML_LABEL = '${{ vars.SAML_LABEL }}'
+              SAML_ISSUER = '${{ vars.SAML_ISSUER }}'
+              SAML_ENTRY_POINT = '${{ vars.SAML_ENTRY_POINT }}'
+              SAML_CALLBACK_URL = '${{ vars.SAML_CALLBACK_URL }}'
+          }
+
+          Write-Host "Variables to replace: $($vars | Out-String)"
+          # Replace Variable in kubernetes files
+          Replace-VariablesInFile -FilePath k8s/services/elasticsearch-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/services/minio-service.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/services/rabbitmq-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/services/secretproviderclass.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/services/redis-deployment.yaml -Variables $vars
+          
+          Replace-VariablesInFile -FilePath k8s/opencti/ingress.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/platform-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/worker-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/connector-taxii-socradar-bv-collection-01.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/connector-analysis-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/connector-import-document-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/connector-export-file-csv-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/connector-export-file-stix-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/connector-export-file-txt-deployment.yaml -Variables $vars
+          Replace-VariablesInFile -FilePath k8s/opencti/connector-import-file-stix-deployment.yaml -Variables $vars
+        azPSVersion: "latest"
+
+    - name: Deploy SecretProviderClass to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/services/secretproviderclass.yaml
+
+    - name: Deploy MinIO to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/services/minio-service.yaml
+
+    - name: Deploy Elasticsearch to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/services/elasticsearch-deployment.yaml
+
+    - name: Deploy RabbitMQ to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/services/rabbitmq-deployment.yaml
+          
+    - name: Deploy Redis to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/services/redis-deployment.yaml
+          
+    - name: Deploy OpenCTI Platform to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/platform-deployment.yaml
+          
+    - name: Deploy OpenCTI Worker to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/worker-deployment.yaml
+
+    - name: Deploy OpenCTI Ingress to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/ingress.yaml
+          
+    
+
+    - name: Deploy OpenCTI Analysis Connector to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/connector-analysis-deployment.yaml
+
+    - name: Deploy OpenCTI Import Document Connector to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/connector-import-document-deployment.yaml
+
+    - name: Deploy OpenCTI Export CSV Connector to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/connector-export-file-csv-deployment.yaml
+
+    - name: Deploy OpenCTI Export STIX Connector to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/connector-export-file-stix-deployment.yaml
+
+    - name: Deploy OpenCTI Export TXT Connector to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/connector-export-file-txt-deployment.yaml
+
+    - name: Deploy OpenCTI Import STIX Connector to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/connector-import-file-stix-deployment.yaml
+
+    - name: Deploy OpenCTI TAXII SOCRadar Connector to AKS
+      uses: Azure/k8s-deploy@v5
+      with:
+        manifests: |
+          k8s/opencti/connector-taxii-socradar-bv-collection-01.yaml

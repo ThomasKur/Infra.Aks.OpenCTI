@@ -1,0 +1,60 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: connector-export-file-txt
+  name: connector-export-file-txt
+  namespace: opencti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: connector-export-file-txt
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.service: connector-export-file-txt
+    spec:
+      containers:
+        - env:
+            - name: OPENCTI_URL
+              value: "http://opencti:8080"
+            - name: OPENCTI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-admin-token
+                  name: opencti-azure-kv-secret
+            - name: CONNECTOR_ID
+              value: "export-file-txt-connector-001"
+            - name: CONNECTOR_NAME
+              value: "ExportFileTxt"
+            - name: CONNECTOR_SCOPE
+              value: "text/plain"
+            - name: CONNECTOR_TYPE
+              value: "INTERNAL_EXPORT_FILE"
+            - name: CONNECTOR_LOG_LEVEL
+              value: "info"
+          image: $(ACRSERVER)/opencti/connector-export-file-txt:6.7.4
+          name: connector-export-file-txt
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+            requests:
+              memory: 128Mi
+              cpu: 100m
+          volumeMounts:
+            - name: opencti-azure-kv-volume
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: opencti-azure-kv-volume
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "opencti-azure-kv"

@@ -1,0 +1,64 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: connector-import-file-stix
+  name: connector-import-file-stix
+  namespace: opencti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: connector-import-file-stix
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.service: connector-import-file-stix
+    spec:
+      containers:
+        - env:
+            - name: OPENCTI_URL
+              value: "http://opencti:8080"
+            - name: OPENCTI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-admin-token
+                  name: opencti-azure-kv-secret
+            - name: CONNECTOR_ID
+              value: "import-file-stix-connector-001"
+            - name: CONNECTOR_NAME
+              value: "ImportFileStix"
+            - name: CONNECTOR_SCOPE
+              value: "application/json,text/xml"
+            - name: CONNECTOR_TYPE
+              value: "INTERNAL_IMPORT_FILE"
+            - name: CONNECTOR_LOG_LEVEL
+              value: "info"
+            - name: CONNECTOR_AUTO
+              value: "true"
+            - name: CONNECTOR_VALIDATE_BEFORE_IMPORT
+              value: "true"
+          image: $(ACRSERVER)/opencti/connector-import-file-stix:6.7.4
+          name: connector-import-file-stix
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 500m
+            requests:
+              memory: 256Mi
+              cpu: 250m
+          volumeMounts:
+            - name: opencti-azure-kv-volume
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: opencti-azure-kv-volume
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "opencti-azure-kv"

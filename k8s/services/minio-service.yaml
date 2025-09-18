@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: minio
+  name: minio
+  namespace: opencti
+spec:
+  ports:
+    - name: "9000"
+      port: 9000
+      targetPort: 9000
+  selector:
+    io.kompose.service: minio
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: minio
+  name: minio
+  namespace: opencti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: minio
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.service: minio
+    spec:
+      containers:
+        - args:
+            - server
+            - /data
+          env:
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: minio-root-password
+                  name: opencti-azure-kv-secret
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  key: minio-root-user
+                  name: opencti-azure-kv-secret
+          image: $(ACRSERVER)/dockerhub/minio/minio:RELEASE.2025-06-13T11-33-47Z
+          livenessProbe:
+            exec:
+              command:
+                - mc
+                - ready
+                - local
+            failureThreshold: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: minio
+          ports:
+            - containerPort: 9000
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /data
+              name: s3data
+            - name: opencti-azure-kv-volume
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: s3data
+          persistentVolumeClaim:
+            claimName: s3data
+        - name: opencti-azure-kv-volume
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "opencti-azure-kv"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    io.kompose.service: s3data
+  name: s3data
+  namespace: opencti
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: managed-csi
+  resources:
+    requests:
+      storage: 100Gi

@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: connector-import-document
+  name: connector-import-document
+  namespace: opencti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: connector-import-document
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.service: connector-import-document
+    spec:
+      containers:
+        - env:
+            - name: OPENCTI_URL
+              value: "http://opencti:8080"
+            - name: OPENCTI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-admin-token
+                  name: opencti-azure-kv-secret
+            - name: CONNECTOR_ID
+              value: "import-document-connector-001"
+            - name: CONNECTOR_NAME
+              value: "ImportDocument"
+            - name: CONNECTOR_SCOPE
+              value: "application/pdf,text/plain,text/html"
+            - name: CONNECTOR_TYPE
+              value: "INTERNAL_IMPORT_FILE"
+            - name: CONNECTOR_LOG_LEVEL
+              value: "info"
+            - name: CONNECTOR_AUTO
+              value: "true"
+            - name: CONNECTOR_CONFIDENCE_LEVEL
+              value: "15"
+            - name: CONNECTOR_ONLY_CONTEXTUAL
+              value: "false"
+            - name: CONNECTOR_VALIDATE_BEFORE_IMPORT
+              value: "true"
+            - name: IMPORT_DOCUMENT_CREATE_INDICATOR
+              value: "true"
+          image: $(ACRSERVER)/dockerhub/opencti/connector-import-document:6.7.4
+          name: connector-import-document
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 500m
+            requests:
+              memory: 256Mi
+              cpu: 250m
+          volumeMounts:
+            - name: opencti-azure-kv-volume
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: opencti-azure-kv-volume
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "opencti-azure-kv"

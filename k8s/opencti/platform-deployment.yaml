@@ -1,0 +1,215 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: opencti
+  name: opencti-platform
+  namespace: opencti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: opencti
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.service: opencti
+    spec:
+      containers:
+        - env:
+            - name: NODE_OPTIONS
+              value: --max-old-space-size=8096
+            - name: APP__PORT
+              value: "8080"
+            - name: APP__BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-base-url
+                  name: opencti-azure-kv-secret
+            - name: APP__ADMIN__EMAIL
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-admin-email
+                  name: opencti-azure-kv-secret
+            - name: APP__ADMIN__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-admin-password
+                  name: opencti-azure-kv-secret
+            - name: APP__ADMIN__TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-admin-token
+                  name: opencti-azure-kv-secret
+            - name: APP__APP_LOGS__LOGS_LEVEL
+              value: info
+            - name: APP__APP_LOGS__LOGS_CONSOLE
+              value: "true"
+            - name: APP__HEALTH_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: opencti-healthcheck-access-key
+                  name: opencti-azure-kv-secret
+            - name: REDIS__HOSTNAME
+              value: "redis"
+            - name: REDIS__PORT
+              value: "6379"
+            - name: REDIS__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: redis-password
+                  name: opencti-azure-kv-secret
+            - name: REDIS__USERNAME
+              value: "default"
+            - name: REDIS__TRIMMING
+              value: "2000000"
+            - name: ELASTICSEARCH__URL
+              value: http://elasticsearch:9200
+            - name: ELASTICSEARCH__NUMBER_OF_REPLICAS
+              value: "0"
+            - name: MINIO__ENDPOINT
+              value: minio
+            - name: MINIO__PORT
+              value: "9000"
+            - name: MINIO__USE_SSL
+              value: "false"
+            - name: MINIO__ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: minio-root-user
+                  name: opencti-azure-kv-secret
+            - name: MINIO__SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: minio-root-password
+                  name: opencti-azure-kv-secret
+            - name: RABBITMQ__HOSTNAME
+              value: rabbitmq
+            - name: RABBITMQ__PORT
+              value: "5672"
+            - name: RABBITMQ__PORT_MANAGEMENT
+              value: "15672"
+            - name: RABBITMQ__MANAGEMENT_SSL
+              value: "false"
+            - name: RABBITMQ__USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: rabbitmq-user
+                  name: opencti-azure-kv-secret
+            - name: RABBITMQ__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: rabbitmq-password
+                  name: opencti-azure-kv-secret
+            - name: SMTP__HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  key: smtp-hostname
+                  name: opencti-azure-kv-secret
+            - name: SMTP__PORT
+              value: "25"
+            - name: PROVIDERS__LOCAL__STRATEGY
+              value: "LocalStrategy"
+            # SAML Configuration
+            - name: PROVIDERS__SAML__STRATEGY
+              value: "SamlStrategy"
+            - name: PROVIDERS__SAML__CONFIG__LABEL
+              value: "Login with Entra ID"
+            - name: PROVIDERS__SAML__CONFIG__ISSUER
+              value: "$(SAML_ISSUER)"
+            - name: PROVIDERS__SAML__CONFIG__CERT
+              valueFrom:
+                secretKeyRef:
+                  key: saml-certificate-data
+                  name: opencti-azure-kv-secret
+            - name: PROVIDERS__SAML__CONFIG__ENTRY_POINT
+              value: "$(SAML_ENTRY_POINT)"
+            - name: PROVIDERS__SAML__CONFIG__SAML_CALLBACK_URL
+              value: "$(SAML_CALLBACK_URL)"
+            - name: PROVIDERS__SAML__CONFIG__WANT_AUTHN_RESPONSE_SIGNED
+              value: "false"
+            - name: PROVIDERS__SAML__CONFIG__WANT_ASSERTIONS_SIGNED
+              value: "false"
+            - name: PROVIDERS__SAML__CONFIG__DISABLE_REQUESTED_AUTHN_CONTEXT
+              value: "true"
+            - name: PROVIDERS__SAML__CONFIG__ACCOUNT_ATTRIBUTE
+              value: "http://schemas.microsoft.com/identity/claims/displayname"
+            - name: PROVIDERS__SAML__CONFIG__FIRSTNAME_ATTRIBUTE
+              value: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
+            - name: PROVIDERS__SAML__CONFIG__LASTNAME_ATTRIBUTE
+              value: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
+            - name: PROVIDERS__SAML__CONFIG__GROUPS_MANAGEMENT__GROUPS_ATTRIBUTES
+              value: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+            - name: PROVIDERS__SAML__CONFIG__AUTO_CREATE_GROUP
+              value: "true"
+            - name: PROVIDERS__SAML__CONFIG__DEFAULT_ROLES
+              value: "Default"
+          image: $(ACRSERVER)/dockerhub/opencti/platform:6.7.16
+          startupProbe:
+            httpGet:
+              path: /health?health_access_key=$(OPENCTI_HEALTHCHECK_ACCESS_KEY)
+              port: 8080
+            failureThreshold: 30
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health?health_access_key=$(OPENCTI_HEALTHCHECK_ACCESS_KEY)
+              port: 8080
+            failureThreshold: 5
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health?health_access_key=$(OPENCTI_HEALTHCHECK_ACCESS_KEY)
+              port: 8080
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: opencti-platform
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          resources:
+            limits:
+              memory: 8Gi
+              cpu: 2000m
+            requests:
+              memory: 4Gi
+              cpu: 1000m
+          volumeMounts:
+            - name: opencti-azure-kv-volume
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: opencti-azure-kv-volume
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "opencti-azure-kv"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: opencti
+  name: opencti
+  namespace: opencti
+spec:
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    io.kompose.service: opencti
+  type: ClusterIP
+
