@@ -8,22 +8,6 @@ param appName string = 'opencti'
 @minLength(3)
 param appVersion string = '001'
 
-@description('Enable auto-scaling for AKS node pools. Default is true.')
-param enableAutoScaling bool = true
-
-@description('Minimum number of nodes in the AKS node pools when auto-scaling is enabled.')
-param minNodeCount int = 1
-
-@description('Maximum number of nodes in the AKS node pools when auto-scaling is enabled.')
-param maxNodeCount int = 10
-
-@description('The name of the Log Analytics workspace.')
-@maxLength(63)
-param logAnalyticsWorkspaceName string = 'log-${appName}-${appVersion}'
-
-@description('Retention period in days for Log Analytics workspace.')
-param logAnalyticsRetentionInDays int = 30
-
 @description('MinIO root user for object storage.')
 @secure()
 param minioRootUser string
