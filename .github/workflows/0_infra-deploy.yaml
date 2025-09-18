@@ -193,7 +193,7 @@ jobs:
     - name: Set AKS context
       uses: azure/aks-set-context@v4
       with:
-        resource-group: '${{ vars.AKS_RESSOURCE_GROUP }}'
+        resource-group: '${{ vars.AKS_RESOURCE_GROUP }}'
         cluster-name: '${{ vars.AKS_CLUSTER_NAME }}'
         admin: 'false'
         use-kubelogin: 'true'

@@ -571,15 +571,15 @@ if (-not $roleAssignment) {
 }
 
 Write-Host ""
-Write-Host "🔐 Configuring AKS Permissions on Rg $AksResourceGroup ..." -ForegroundColor Yellow
-$roleAssignment = Get-AzRoleAssignment -ObjectId $managedIdentity.PrincipalId -ResourceGroupName $AksResourceGroup -RoleDefinitionName "Azure Kubernetes Service Cluster User Role" -ErrorAction SilentlyContinue
+Write-Host "🔐 Configuring Azure Kubernetes Service RBAC Cluster Admin role on Rg $AksResourceGroup ..." -ForegroundColor Yellow
+$roleAssignment = Get-AzRoleAssignment -ObjectId $managedIdentity.PrincipalId -ResourceGroupName $AksResourceGroup -RoleDefinitionName "Azure Kubernetes Service RBAC Cluster Admin" -ErrorAction SilentlyContinue
 if (-not $roleAssignment) {
-    Write-Host "⏳ Assigning AKS Writer role to managed identity on Rg $AksResourceGroup ..."
+    Write-Host "⏳ Assigning Azure Kubernetes Service RBAC Cluster Admin role to managed identity on Rg $AksResourceGroup ..."
     Start-Sleep -Seconds 5
-    New-AzRoleAssignment -ApplicationId $managedIdentity.ClientId -ResourceGroupName $AksResourceGroup -RoleDefinitionName "Azure Kubernetes Service Cluster User Role" | Out-Null
-    Write-Host "✅ AKS role assigned to managed identity on Rg $AksResourceGroup" -ForegroundColor Green
+    New-AzRoleAssignment -ApplicationId $managedIdentity.ClientId -ResourceGroupName $AksResourceGroup -RoleDefinitionName "Azure Kubernetes Service RBAC Cluster Admin" | Out-Null
+    Write-Host "✅ Azure Kubernetes Service RBAC Cluster Admin role assigned to managed identity on Rg $AksResourceGroup" -ForegroundColor Green
 } else {
-    Write-Host "ℹ️  Managed identity already has AKS Writer role on Rg $AksResourceGroup" -ForegroundColor Blue
+    Write-Host "ℹ️  Managed identity already has Azure Kubernetes Service RBAC Cluster Admin role on Rg $AksResourceGroup" -ForegroundColor Blue
 }
 
 
@@ -887,7 +887,7 @@ Write-Host "   ENTRA_ID_INFRA_ADMIN_GROUP_ID: $($grp.Id)"
 Write-Host "   SAML_CALLBACK_URL: $SamlCallbackUrl"
 Write-Host "   SAML_ENTRY_POINT: https://login.microsoftonline.com/$tenantId/saml2"
 Write-Host "   SAML_ISSUER: api://$($finalApp.AppId)"
-Write-Host "   AKS_RESSOURCE_GROUP: $AksResourceGroup"
+Write-Host "   AKS_RESOURCE_GROUP: $AksResourceGroup"
 Write-Host "   AKS_CLUSTER_NAME: $(if ($aks.Name) { $aks.Name } else { '[AKS not found]' })"
 Write-Host "   ACR_NAME: $(if ($acr.Name) { $acr.Name } else { '[ACR not found]' })"
 Write-Host "   OPENCTI_BASE_URL: [Set your OpenCTI base URL]" -ForegroundColor Yellow
