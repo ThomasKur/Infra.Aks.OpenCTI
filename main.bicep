@@ -83,7 +83,7 @@ param socradarUsername string
 param socradarPassword string
 
 
-var keyVaultName = 'kv-${appName}-${appVersion}-${uniqueString(resourceGroup().id)}'
+var keyVaultName = take('kv-${appName}-${appVersion}-${uniqueString(resourceGroup().id)}', 24)
 
 
 
