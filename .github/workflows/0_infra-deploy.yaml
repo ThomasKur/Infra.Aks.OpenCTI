@@ -82,7 +82,7 @@ jobs:
 
     - name: Check that Namespace OpenCTI exists
       run: |
-        echo -e "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: opencti" | kubectl apply -f -
+        echo -e "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: ${{ vars.APPNAME }}" | kubectl apply -f -
 
     - name: Replace Variables 
       uses: azure/powershell@v2
@@ -139,6 +139,7 @@ jobs:
               SAML_ISSUER = '${{ vars.SAML_ISSUER }}'
               SAML_ENTRY_POINT = '${{ vars.SAML_ENTRY_POINT }}'
               SAML_CALLBACK_URL = '${{ vars.SAML_CALLBACK_URL }}'
+              NAMESPACE = '${{ vars.APPNAME }}'
           }
 
           Write-Host "Variables to replace: $($vars | Out-String)"

@@ -4,7 +4,7 @@ metadata:
   labels:
     io.kompose.service: elasticsearch
   name: elasticsearch
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   replicas: 1
   selector:
@@ -87,7 +87,7 @@ metadata:
   labels:
     io.kompose.service: elasticsearch
   name: esdata
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   accessModes:
     - ReadWriteOnce
@@ -102,7 +102,7 @@ metadata:
   labels:
     io.kompose.service: elasticsearch
   name: elasticsearch
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   ports:
     - name: http

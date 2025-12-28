@@ -895,7 +895,10 @@ Write-Host "   OPENCTI_BASE_URL: [Set your OpenCTI base URL]" -ForegroundColor Y
 Write-Host ""
 Write-Host "✅ NEXT STEPS:" -ForegroundColor Green
 Write-Host "   1. 🔧 Configure GitHub Secrets and Variables as shown above"
-Write-Host "   2. 🚀 Deploy your OpenCTI infrastructure using GitHub Actions"
+Write-Host "   2. � Create an A record in your DNS provider for your chosen hostname pointing to the Azure Front Door Public IP"
+Write-Host "   3. 🚀 Deploy your OpenCTI infrastructure using GitHub Actions"
+Write-Host "   4. 🔥 Set the WAF Ruleset 'Microsoft_DefaultRuleSet' in front of the OpenCTI application to Logging only to avoid issues"
+
 
 Write-Host ""
 Write-Host "🎉 SETUP COMPLETED SUCCESSFULLY!" -ForegroundColor Green -BackgroundColor Black

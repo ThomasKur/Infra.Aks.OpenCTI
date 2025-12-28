@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: opencti-ingress
-  namespace: opencti
+  namespace: $(NAMESPACE)
   annotations:
     appgw.ingress.kubernetes.io/use-private-ip: "false"
     appgw.ingress.kubernetes.io/ssl-redirect: "true"

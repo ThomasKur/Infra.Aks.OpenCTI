@@ -4,7 +4,7 @@ metadata:
   labels:
     io.kompose.service: worker
   name: opencti-worker
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   replicas: 3
   selector:

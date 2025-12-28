@@ -221,6 +221,16 @@ To add custom connectors:
 3. Configure required secrets in Azure Key Vault
 4. Update the `secretproviderclass.yaml` if new secrets are needed
 
+## 🌐 DNS Configuration
+
+Before deploying the application, you must create an A record in your DNS provider:
+
+1. **Get the Azure Front Door Public IP**: After deploying your infrastructure, retrieve the public IP address of your Azure Front Door instance
+2. **Create DNS A Record**: In your DNS provider, create an A record for your chosen hostname (e.g., `opencti.yourdomain.com`) pointing to the Azure Front Door Public IP
+3. **Verify DNS Resolution**: Ensure the DNS record is properly propagated before accessing the application
+
+This step is required for HTTPS/TLS certificate validation and proper traffic routing to your OpenCTI instance.
+
 ## 🔍 Monitoring & Troubleshooting
 
 ### Accessing OpenCTI

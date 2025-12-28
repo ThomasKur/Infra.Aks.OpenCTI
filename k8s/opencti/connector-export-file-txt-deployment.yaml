@@ -5,7 +5,7 @@ metadata:
   labels:
     io.kompose.service: connector-export-file-txt
   name: connector-export-file-txt
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   replicas: 1
   selector:

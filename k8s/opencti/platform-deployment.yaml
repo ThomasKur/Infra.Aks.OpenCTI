@@ -4,7 +4,7 @@ metadata:
   labels:
     io.kompose.service: opencti
   name: opencti-platform
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   replicas: 1
   selector:
@@ -202,7 +202,7 @@ metadata:
   labels:
     io.kompose.service: opencti
   name: opencti
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   ports:
     - name: http

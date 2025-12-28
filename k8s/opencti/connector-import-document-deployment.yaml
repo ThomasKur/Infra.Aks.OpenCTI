@@ -5,7 +5,7 @@ metadata:
   labels:
     io.kompose.service: connector-import-document
   name: connector-import-document
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   replicas: 1
   selector:

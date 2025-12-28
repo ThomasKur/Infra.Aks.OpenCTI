@@ -4,7 +4,7 @@ metadata:
   labels:
     io.kompose.service: minio
   name: minio
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   ports:
     - name: "9000"
@@ -19,7 +19,7 @@ metadata:
   labels:
     io.kompose.service: minio
   name: minio
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   replicas: 1
   selector:
@@ -85,7 +85,7 @@ metadata:
   labels:
     io.kompose.service: s3data
   name: s3data
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   accessModes:
     - ReadWriteOnce

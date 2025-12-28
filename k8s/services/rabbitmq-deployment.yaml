@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: rabbitmq-config
-  namespace: opencti
+  namespace: $(NAMESPACE)
 data:
   rabbitmq.conf: |
     max_message_size = 536870912
@@ -14,7 +14,7 @@ metadata:
   labels:
     io.kompose.service: rabbitmq
   name: rabbitmq
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   replicas: 1
   selector:
@@ -97,7 +97,7 @@ metadata:
   labels:
     io.kompose.service: amqpdata
   name: amqpdata
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   accessModes:
     - ReadWriteOnce
@@ -112,7 +112,7 @@ metadata:
   labels:
     io.kompose.service: rabbitmq
   name: rabbitmq
-  namespace: opencti
+  namespace: $(NAMESPACE)
 spec:
   ports:
     - name: amqp
