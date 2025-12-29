@@ -106,7 +106,7 @@ cd Infra.Aks.OpenCTI
 Run the automated setup script to configure Azure resources and GitHub integration:
 
 ```powershell
-.\Setup.ps1 -AdminUpn "admin@yourdomain.com" -EnvironmentName "production" -GithubOrga "YourGitHubOrg" -AksResourceGroup "your-aks-rg-name"
+.\Setup.ps1 -Fqdn "opencti.yourdomain.com" -AdminUpn "admin@yourdomain.com" -EnvironmentName "production" -GithubOrga "YourGitHubOrg" -AksResourceGroup "your-aks-rg-name"
 ```
 
 This script will:

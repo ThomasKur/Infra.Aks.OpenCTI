@@ -39,17 +39,22 @@
     The name of the resource group where the AKS cluster is located.
     Default: "rg-aks-001"
 
-.EXAMPLE
-    .\Setup.ps1
-    Runs the script with default values.
+.PARAMETER Fqdn
+    Fully Qualified Domain Name for OpenCTI. This is a required parameter and will be used to dynamically
+    generate SAML callback URLs and the OpenCTI base URL.
+    Example: "opencti.mycompany.com"
 
 .EXAMPLE
-    .\Setup.ps1 -AppName "myopencti" -AppVersion "002" -Location "eastus"
-    Runs the script with custom application name, version, and location.
+    .\Setup.ps1 -Fqdn "opencti.mycompany.com"
+    Runs the script with required FQDN parameter and other default values.
 
 .EXAMPLE
-    .\Setup.ps1 -AdminUpn "admin@mycompany.com" -GithubOrga "MyOrg" -EnvironmentName "production"
-    Runs the script with custom admin user, GitHub organization, and environment.
+    .\Setup.ps1 -Fqdn "opencti.mycompany.com" -AppName "myopencti" -AppVersion "002" -Location "eastus"
+    Runs the script with custom FQDN, application name, version, and location.
+
+.EXAMPLE
+    .\Setup.ps1 -Fqdn "opencti.prod.mycompany.com" -AdminUpn "admin@mycompany.com" -GithubOrga "MyOrg" -EnvironmentName "production"
+    Runs the script with custom FQDN, admin user, GitHub organization, and environment.
 
 .NOTES
     Prerequisites:
@@ -87,12 +92,9 @@ param(
     [Parameter(Mandatory = $false, HelpMessage = "AKS Resource Group name")]
     [string]$AksResourceGroup = "rg-aks-001",
     
-    # SAML Configuration
-    [Parameter(Mandatory = $false, HelpMessage = "OpenCTI SAML callback URL")]
-    [string]$SamlCallbackUrl = "https://opencti.kurcontoso.ch/auth/saml/callback",
-    
-    [Parameter(Mandatory = $false, HelpMessage = "OpenCTI SAML login URL")]
-    [string]$SamlLoginUrl = "https://opencti.kurcontoso.ch/",
+    # FQDN Configuration
+    [Parameter(Mandatory = $true, HelpMessage = "Fully Qualified Domain Name for OpenCTI")]
+    [string]$Fqdn,
     
     [Parameter(Mandatory = $false, HelpMessage = "Notification email for certificate expiry")]
     [string]$NotificationEmail = "admin@example.onmicrosoft.com"
@@ -105,6 +107,12 @@ $grpNameInfraAdmin = "sg-$AppName-infraadmin"
 $grpNameThreatIntel = "sg-$AppName-threatintel"
 $grpNameAnalysts = "sg-$AppName-analysts"
 $samlAppName = "$AppName-saml-$AppVersion"
+
+# --- Dynamic SAML URLs based on FQDN ---
+$SamlCallbackUrl = "https://$Fqdn/auth/saml/callback"
+
+$SamlLoginUrl = "https://$Fqdn/"
+
 
 # --- Module Installation Checks ---
 Write-Host ""
@@ -890,7 +898,7 @@ Write-Host "   SAML_ISSUER: api://$($finalApp.AppId)"
 Write-Host "   AKS_RESOURCE_GROUP: $AksResourceGroup"
 Write-Host "   AKS_CLUSTER_NAME: $(if ($aks.Name) { $aks.Name } else { '[AKS not found]' })"
 Write-Host "   ACR_NAME: $(if ($acr.Name) { $acr.Name } else { '[ACR not found]' })"
-Write-Host "   OPENCTI_BASE_URL: [Set your OpenCTI base URL]" -ForegroundColor Yellow
+Write-Host "   OPENCTI_BASE_URL: https://$Fqdn"
 
 Write-Host ""
 Write-Host "✅ NEXT STEPS:" -ForegroundColor Green
